@@ -1,109 +1,165 @@
 # Bonafide Notification Lambda
 
-This project provides a Notification Lambda Service for the Bonafide platform, enabling real-time notifications to users via AWS Lambda, DynamoDB, and API Gateway WebSocket integration.
+A serverless notification service for the Bonafide platform, enabling real-time, targeted notifications to users, roles, or teams via AWS Lambda, API Gateway (WebSocket & HTTP), and DynamoDB.
+
+---
 
 ## Features
-- Send notifications to users, roles, or teams
-- AWS Lambda and WebSocket API Gateway integration
-- DynamoDB for connection management
-- Spring Boot configuration and auto-configuration
-- Metrics and logging support
-- Lambda/serverless friendly design
+- Real-time notifications to users, roles, or teams
+- WebSocket and HTTP API Gateway integration
+- Connection and subscription management in DynamoDB
+- REST API for sending notifications and querying metrics
+- WebSocket protocol for subscribing to topics and heartbeats
+- Direct Lambda invocation support
+- Metrics and health endpoints
+- Scalable, serverless, and easy to extend
 
-## Project Structure
-- `src/main/java/com/bonafide/notificationlambda/` - Main Java source code
-- `src/main/resources/notificationlambda/` - Resource and configuration files
+---
 
-## Getting Started
-1. Clone the repository
-2. Build with Maven: `mvn clean install`
-3. Configure AWS credentials and environment variables as needed
-4. Deploy the Lambda and configure API Gateway
+## Request Types & Flow
 
-## Configuration
-See `src/main/resources/notificationlambda/notification-service.properties` for configuration options.
+The Lambda handler supports multiple event types:
+- **HTTP API**: Handles REST endpoints for sending notifications, metrics, health, and connections.
+- **WebSocket Connect/Disconnect**: Manages user connections and stores metadata in DynamoDB.
+- **WebSocket Default**: Handles client messages (e.g., subscribe, heartbeat) for real-time updates.
+- **Direct Invoke**: Allows programmatic notification sending via Lambda invocation.
 
-Example (application.yml):
-```yaml
-notification:
-  enabled: true
-  use-lambda-direct: true
-  aws:
-    region: us-east-1
-    lambda:
-      function-name: notification-service-lambda
-    dynamo-db:
-      connections-table: websocket-connections
-```
+### Notification Flow
+1. **Client connects via WebSocket** → `$connect` event stores connection info.
+2. **Client subscribes to topics** via WebSocket message (`{"action": "subscribe", "topics": ["PROCESS_COMPLETE"]}`) → updates subscriptions in DynamoDB.
+3. **Notification is sent** (via REST API or Lambda invoke) → eligible connections are determined and notified in real-time.
+4. **Client sends heartbeat** (`{"action": "heartbeat"}`) → updates last seen timestamp.
+5. **Disconnect** → `$disconnect` event removes connection.
 
-## Lambda Deployment Notes
-- The library is designed to be used in AWS Lambda environments.
-- You only need two minimal Lambdas for WebSocket API Gateway:
-  - **Connection Handler Lambda**: Handles `$connect` and `$disconnect` events, manages DynamoDB connection table.
-  - **Default Handler Lambda**: (Optional) Handles messages from clients.
-- The Java library can invoke Lambda directly or send notifications via WebSocket API Gateway.
+---
 
 ## REST API Endpoints
 
 ### Send Notification
-`POST /api/notifications/send`
-- **Body:** `NotificationRequest` JSON
-- **Response:** `NotificationResponse` JSON
+Send a notification to users, roles, or teams.
+```sh
+curl -X POST https://<api-url>/api/notifications/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "SYSTEM_ALERT",
+    "title": "System Maintenance",
+    "message": "The system will be down at midnight.",
+    "priority": "HIGH",
+    "targetUsers": ["user1", "user2"],
+    "timestamp": 1717238400
+  }'
+```
 
-Example:
+### Get Metrics
+Get active connection and subscription metrics.
+```sh
+curl https://<api-url>/api/notifications/metrics
+```
+
+### Health Check
+Check service health.
+```sh
+curl https://<api-url>/api/notifications/health
+```
+
+### Get Active Connections
+```sh
+curl https://<api-url>/api/notifications/connections
+```
+
+---
+
+## WebSocket Protocol
+
+### Connect
+Clients connect to the WebSocket endpoint:
+```
+wss://<api-id>.execute-api.<region>.amazonaws.com/<stage>?userId=<user>&roles=USER,ADMIN&teams=TEAM1,TEAM2&department=SALES
+```
+- On connect, the service stores the connection with user info and default subscriptions.
+
+### Subscribe to Topics
+Send a message after connecting to subscribe to topics:
 ```json
-POST /api/notifications/send
 {
-  "type": "SYSTEM_ALERT",
-  "title": "System Maintenance",
-  "message": "The system will be down at midnight.",
-  "priority": "HIGH",
-  "targetUsers": ["user1", "user2"],
-  "timestamp": "2024-06-01T12:00:00Z"
+  "action": "subscribe",
+  "topics": ["PROCESS_COMPLETE", "SYSTEM_ALERTS"]
 }
 ```
 
-### Send to Users
-`POST /api/notifications/send/users?type=TYPE&message=MESSAGE`
-- **Body:** List of user IDs (JSON array)
-- **Response:** `NotificationResponse` JSON
-
-Example:
+### Heartbeat
+Send a heartbeat to keep the connection alive:
 ```json
-POST /api/notifications/send/users?type=ALERT&message=Hello
-["user1", "user2"]
+{
+  "action": "heartbeat"
+}
 ```
 
-### Send to Roles
-`POST /api/notifications/send/roles?type=TYPE&message=MESSAGE`
-- **Body:** List of roles (JSON array)
-- **Response:** `NotificationResponse` JSON
+---
 
-Example:
+## Notification Payload Structure
+
+### NotificationRequest
 ```json
-POST /api/notifications/send/roles?type=ALERT&message=Hello
-["ADMIN", "MANAGER"]
+{
+  "type": "CUSTOM_NOTIFICATION",
+  "title": "Title",
+  "message": "Message body",
+  "moduleName": "MODULE",
+  "priority": "HIGH",
+  "targetUsers": ["user1"],
+  "requiredRoles": ["ADMIN"],
+  "targetTeams": ["TEAM1"],
+  "processOwnerId": "ownerId",
+  "data": {"key": "value"},
+  "actions": [{"type": "OPEN_URL", "url": "https://..."}],
+  "timestamp": 1717238400
+}
 ```
 
-### Send Process Complete
-`POST /api/notifications/send/process-complete?processId=PID&status=STATUS&ownerId=OWNER&moduleName=MODULE`
-- **Response:** `NotificationResponse` JSON
+### NotificationResult
+```json
+{
+  "status": "SENT|FAILED|NO_RECIPIENTS",
+  "sent": 1,
+  "failed": 0,
+  "totalRecipients": 1,
+  "message": "Sent to 1/1 connections"
+}
+```
 
-### Get Metrics
-`GET /api/notifications/metrics`
-- **Response:** Map of metric names to values
+---
 
-### Health Check
-`GET /api/notifications/health`
-- **Response:** Service status and timestamp
+## How to Subscribe to Notifications
+1. **Connect** to the WebSocket endpoint with your user info as query params.
+2. **Send a subscribe message** to specify which topics you want to receive:
+   ```json
+   { "action": "subscribe", "topics": ["PROCESS_COMPLETE", "SYSTEM_ALERTS"] }
+   ```
+3. **Send periodic heartbeats** to keep your connection alive:
+   ```json
+   { "action": "heartbeat" }
+   ```
+4. **Receive notifications** in real-time as messages from the server.
 
-## User Cases
-- **Notify users of process completion:**
-  - Use `sendProcessComplete` to alert process owners and admins when a process finishes.
-- **Send system alerts to all admins:**
-  - Use `sendToRoles` with role `ADMIN`.
-- **Targeted notifications:**
-  - Use `sendToUsers` for direct user notifications.
+---
+
+## Configuration
+- Environment variables:
+  - `CONNECTIONS_TABLE`: DynamoDB table for connections
+  - `WEBSOCKET_API_ENDPOINT`: WebSocket API endpoint (must be https:// for Lambda)
+  - `AWS_REGION`: AWS region
+- See `src/main/resources/notificationlambda/notification-service.properties` for more options.
+
+---
+
+## Example Use Cases
+- Notify users of process completion
+- Send system alerts to all admins
+- Targeted notifications to users, roles, or teams
+- Real-time UI updates for business events
+
+---
 
 ## License
 Proprietary - Bonafide Platform
