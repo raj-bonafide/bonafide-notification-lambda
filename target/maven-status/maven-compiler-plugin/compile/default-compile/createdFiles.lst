@@ -1,0 +1,15 @@
+com/bonafide/notificationlambda/service/HttpApiService.class
+com/bonafide/notificationlambda/model/NotificationPriority.class
+com/bonafide/notificationlambda/model/ConnectionRecord$ConnectionRecordBuilder.class
+com/bonafide/notificationlambda/api/NotificationLambdaHandler.class
+com/bonafide/notificationlambda/service/NotificationService.class
+com/bonafide/notificationlambda/model/NotificationStatus.class
+com/bonafide/notificationlambda/model/ConnectionRecord.class
+com/bonafide/notificationlambda/model/NotificationResult$NotificationResultBuilder.class
+com/bonafide/notificationlambda/service/ConnectionService.class
+com/bonafide/notificationlambda/model/NotificationResult.class
+com/bonafide/notificationlambda/api/NotificationLambdaHandler$1.class
+com/bonafide/notificationlambda/model/NotificationRequest.class
+com/bonafide/notificationlambda/model/NotificationRequest$NotificationRequestBuilder.class
+com/bonafide/notificationlambda/service/WebSocketService.class
+com/bonafide/notificationlambda/model/RequestType.class
