@@ -105,7 +105,7 @@ public class NotificationLambdaHandler implements RequestHandler<Map<String, Obj
                 .department(department)
                 .connectedAt(Instant.now().getEpochSecond())
                 .lastSeen(Instant.now().getEpochSecond())
-                .subscribedTopics(Arrays.asList("PROCESS_COMPLETE", "SYSTEM_ALERTS", "ERROR_ALERTS"))
+                .subscribedTopics(Arrays.asList("PROCESS_COMPLETE", "SYSTEM_ALERTS", "ERROR_ALERTS", "ALL"))
                 .build();
             connectionService.storeConnection(connection);
             log.info("WebSocket connected: {} for user {}", connectionId, userId);

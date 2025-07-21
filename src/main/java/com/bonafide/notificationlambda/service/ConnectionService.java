@@ -100,7 +100,10 @@ public class ConnectionService {
             List<ConnectionRecord> eligible = new ArrayList<>();
             for (Map<String, software.amazon.awssdk.services.dynamodb.model.AttributeValue> item : response.items()) {
                 ConnectionRecord connection = mapToConnectionRecord(item);
-                if (isEligibleForNotification(connection, notification)) {
+                boolean isEligibleForNotification = isEligibleForNotification(connection, notification);
+                log.info("is {} eligible :: {}", connection.getUserId(), isEligibleForNotification);
+                log.info("notification :: {}", notification);
+                if (isEligibleForNotification) {
                     eligible.add(connection);
                 }
             }
